@@ -143,7 +143,7 @@ startup_toggle() {
 efficiency() {
   local pid="${1:-}" action="${2:-}" uid comm stat rest start saved class level dir file
   case "$pid" in ''|*[!0-9]*) echo 'Invalid PID' >&2; return 1 ;; esac
-  case "$action" in on|off) ;; *) echo 'Use on or off' >&2; return 1 ;; esac
+  case "$action" in on|off|toggle) ;; *) echo 'Use on, off or toggle' >&2; return 1 ;; esac
   command -v ionice >/dev/null || { echo 'ionice is unavailable' >&2; return 1; }
   [ "$pid" -gt 1 ] && [ "$pid" != "$$" ] || return 1
   uid=$(awk '/^Uid:/ {print $2; exit}' "/proc/$pid/status" 2>/dev/null) || return 1
@@ -157,6 +157,9 @@ efficiency() {
   dir="${XDG_RUNTIME_DIR:-/tmp}/win11-taskmgr-efficiency-$(id -u)"
   (umask 077; mkdir -p "$dir") || return 1
   file="$dir/$pid-$start"
+  if [ "$action" = toggle ]; then
+    if [ -f "$file" ]; then action=off; else action=on; fi
+  fi
   if [ "$action" = on ]; then
     [ ! -e "$file" ] || { echo 'Efficiency mode is already active.'; return 0; }
     saved=$(LC_ALL=C ionice -p "$pid") || return 1

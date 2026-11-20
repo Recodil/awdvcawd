@@ -877,21 +877,69 @@ AppWindow {
         font.pixelSize: 22; font.weight: Font.DemiBold
         text: root.group.label
     }
-    // вкладки страниц раздела
-    Row {
+    // Tabs remain accessible on narrow windows with arrows, wheel or touchpad.
+    Item {
         id: tabs
-        anchors { left: heading.left; top: heading.bottom; topMargin: 12 }
+        anchors { left: heading.left; right: parent.right; rightMargin: 24; top: heading.bottom; topMargin: 12 }
         visible: root.group.pages.length > 1
         height: visible ? 30 : 0
-        spacing: 4
-        Repeater {
-            model: root.group.pages
-            Chip {
-                required property string modelData
-                label: root.titleOf(modelData)
-                on: root.page === modelData
-                onClicked: root.page = modelData
+        readonly property bool overflow: tabRow.implicitWidth > width
+        function revealCurrent() {
+            const index = root.group.pages.indexOf(root.page);
+            const item = index >= 0 ? tabRepeater.itemAt(index) : null;
+            if (!item) return;
+            if (item.x < tabView.contentX) tabView.contentX = item.x;
+            else if (item.x + item.width > tabView.contentX + tabView.width)
+                tabView.contentX = Math.min(tabView.contentWidth - tabView.width, item.x + item.width - tabView.width);
+        }
+        Connections { target: root; function onPageChanged() { Qt.callLater(tabs.revealCurrent); } }
+        HoverButton {
+            id: tabPrev
+            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+            implicitWidth: tabs.overflow ? 26 : 0; implicitHeight: 30
+            visible: tabs.overflow
+            enabled: tabView.contentX > 0
+            onClicked: tabView.contentX = Math.max(0, tabView.contentX - 180)
+            FIcon { anchors.centerIn: parent; icon: Icons.chevronLeft; font.pixelSize: 14; color: Theme.text }
+        }
+        Flickable {
+            id: tabView
+            anchors { left: tabPrev.right; right: tabNext.left; top: parent.top; bottom: parent.bottom }
+            clip: true
+            contentWidth: tabRow.implicitWidth; contentHeight: height
+            flickableDirection: Flickable.HorizontalFlick
+            boundsBehavior: Flickable.StopAtBounds
+            WheelHandler {
+                target: null
+                onWheel: event => {
+                    const delta = event.angleDelta.x !== 0 ? event.angleDelta.x : event.angleDelta.y;
+                    tabView.contentX = Math.max(0, Math.min(tabView.contentWidth - tabView.width, tabView.contentX - delta));
+                    event.accepted = true;
+                }
             }
+            Row {
+                id: tabRow
+                spacing: 4
+                Repeater {
+                    id: tabRepeater
+                    model: root.group.pages
+                    Chip {
+                        required property string modelData
+                        label: root.titleOf(modelData)
+                        on: root.page === modelData
+                        onClicked: root.page = modelData
+                    }
+                }
+            }
+        }
+        HoverButton {
+            id: tabNext
+            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+            implicitWidth: tabs.overflow ? 26 : 0; implicitHeight: 30
+            visible: tabs.overflow
+            enabled: tabView.contentX < tabView.contentWidth - tabView.width - 1
+            onClicked: tabView.contentX = Math.min(tabView.contentWidth - tabView.width, tabView.contentX + 180)
+            FIcon { anchors.centerIn: parent; icon: Icons.chevronRight; font.pixelSize: 14; color: Theme.text }
         }
     }
     Item {

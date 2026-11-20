@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as Controls
 import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
@@ -377,19 +378,47 @@ AppWindow {
         }
     }
 
-    // ---- заголовок вкладки и действия ----
+    // Keep the heading and actions on separate lines; scroll actions when narrow.
     Item {
         id: topBar
         anchors { left: rail.right; right: parent.right; top: parent.top; leftMargin: 20; rightMargin: 16 }
-        height: 56
+        height: 88
         WText {
-            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+            anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: 7 }
             font.pixelSize: 18; font.weight: Font.DemiBold
             text: { for (let i = 0; i < root.tabs.length; i++) if (root.tabs[i].id === root.tab) return root.tabs[i].label; return ""; }
         }
-        Row {
-            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-            spacing: 6
+        Item {
+            id: actionsStrip
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: 4 }
+            height: 32
+            readonly property bool overflow: actionRow.implicitWidth > width
+            HoverButton {
+                id: actionPrev
+                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                implicitWidth: actionsStrip.overflow ? 26 : 0; implicitHeight: 32
+                visible: actionsStrip.overflow; enabled: actionView.contentX > 0
+                onClicked: actionView.contentX = Math.max(0, actionView.contentX - 180)
+                FIcon { anchors.centerIn: parent; icon: Icons.chevronLeft; font.pixelSize: 14 }
+            }
+            Flickable {
+                id: actionView
+                anchors { left: actionPrev.right; right: actionNext.left; top: parent.top; bottom: parent.bottom }
+                clip: true
+                contentWidth: actionRow.implicitWidth; contentHeight: height
+                flickableDirection: Flickable.HorizontalFlick
+                boundsBehavior: Flickable.StopAtBounds
+                WheelHandler {
+                    target: null
+                    onWheel: event => {
+                        const delta = event.angleDelta.x !== 0 ? event.angleDelta.x : event.angleDelta.y;
+                        actionView.contentX = Math.max(0, Math.min(actionView.contentWidth - actionView.width, actionView.contentX - delta));
+                        event.accepted = true;
+                    }
+                }
+                Row {
+                    id: actionRow
+                    spacing: 6
             Rectangle {
                 visible: root.tab !== "perf"
                 width: 190; height: 32; radius: 4
@@ -415,16 +444,10 @@ AppWindow {
                 onClicked: mouse => root.endTask(mouse.button === Qt.RightButton)
             }
             PushButton {
-                label: Tr.t("Экономия ввода-вывода") + " · " + Tr.t("Включить")
+                label: Tr.t("Экономия ввода-вывода")
                 visible: root.tab === "procs"
                 enabled: root.picked !== null && root.picked.key.indexOf("a:") === 0
-                onClicked: Tools.runInTerminal("win11-taskmgr efficiency " + root.picked.pids[0] + " on")
-            }
-            PushButton {
-                label: Tr.t("Экономия ввода-вывода") + " · " + Tr.t("Отключить")
-                visible: root.tab === "procs"
-                enabled: root.picked !== null && root.picked.key.indexOf("a:") === 0
-                onClicked: Tools.runInTerminal("win11-taskmgr efficiency " + root.picked.pids[0] + " off")
+                onClicked: Tools.runInTerminal("win11-taskmgr efficiency " + root.picked.pids[0] + " toggle")
             }
             PushButton { label: Tr.t("Запустить"); visible: root.tab === "services"; enabled: root.picked !== null && root.picked.state !== "active"; onClicked: root.service("start") }
             PushButton { label: Tr.t("Остановить"); visible: root.tab === "services"; enabled: root.picked !== null && root.picked.state === "active"; onClicked: root.service("stop") }
@@ -434,6 +457,16 @@ AppWindow {
                 visible: root.tab === "startup"
                 enabled: root.picked !== null
                 onClicked: root.toggleStartup()
+            }
+                }
+            }
+            HoverButton {
+                id: actionNext
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                implicitWidth: actionsStrip.overflow ? 26 : 0; implicitHeight: 32
+                visible: actionsStrip.overflow; enabled: actionView.contentX < actionView.contentWidth - actionView.width - 1
+                onClicked: actionView.contentX = Math.min(actionView.contentWidth - actionView.width, actionView.contentX + 180)
+                FIcon { anchors.centerIn: parent; icon: Icons.chevronRight; font.pixelSize: 14 }
             }
         }
     }
@@ -447,8 +480,28 @@ AppWindow {
         readonly property var cols: root.columns[root.tab] || []
         readonly property real fixed: { let s = 0; cols.forEach(c => s += c.w || 0); return s; }
         readonly property int flexible: cols.filter(c => !c.w).length
-        function widthOf(c) { return c.w || Math.max(120, (width - fixed - 14) / Math.max(1, flexible)); }
+        function widthOf(c) { return c.w || Math.max(120, (tableH.contentWidth - fixed - 14) / Math.max(1, flexible)); }
 
+        Flickable {
+            id: tableH
+            anchors.fill: parent
+            clip: true
+            contentWidth: Math.max(width, table.fixed + table.flexible * 120 + 14)
+            contentHeight: height
+            flickableDirection: Flickable.HorizontalFlick
+            boundsBehavior: Flickable.StopAtBounds
+            Controls.ScrollBar.horizontal: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
+            WheelHandler {
+                target: null
+                acceptedModifiers: Qt.ShiftModifier
+                onWheel: event => {
+                    const delta = event.angleDelta.x !== 0 ? event.angleDelta.x : event.angleDelta.y;
+                    tableH.contentX = Math.max(0, Math.min(tableH.contentWidth - tableH.width, tableH.contentX - delta));
+                    event.accepted = true;
+                }
+            }
+            Item {
+                width: tableH.contentWidth; height: tableH.height
         Row {
             id: header
             height: 42
@@ -542,6 +595,8 @@ AppWindow {
             color: Theme.subtext
             text: root.frames === 0 && (root.tab === "procs" || root.tab === "details" || root.tab === "users" || root.tab === "history") ? Tr.t("Собираю сведения…")
                 : root.tab === "startup" ? Tr.t("В автозагрузке ничего нет") : Tr.t("Ничего не найдено")
+        }
+            }
         }
     }
 
