@@ -1,0 +1,30 @@
+// Этот файл создаёт окно "Параметры" (Win+I). Вручную не править - будет перезаписан.
+input {
+    keyboard {
+        xkb {
+            layout "us,ru"
+            options "grp:win_space_toggle"
+        }
+        repeat-delay 600
+        repeat-rate 25
+    }
+    mouse {
+        accel-speed 0.00
+    }
+    touchpad {
+        tap
+        natural-scroll
+    }
+}
+animations {
+    slowdown 1.00
+}
+layout {
+    shadow {
+        on
+    }
+}
+window-rule {
+    geometry-corner-radius 8
+    clip-to-geometry true
+}

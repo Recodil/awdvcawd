@@ -1,0 +1,169 @@
+// niri под Windows 11. install.sh копирует этот файл в ~/.config/niri/config.kdl
+// Проверка синтаксиса: niri validate
+
+// Клавиатура, мышь, сенсорная панель, скругление окон, тени и скорость анимаций
+// задаются в окне "Параметры" (Win+I) и лежат в win11-settings.kdl - он подключён в самом конце.
+
+environment {
+    QS_ICON_THEME "Fluent"
+}
+
+cursor {
+    xcursor-theme "Bibata-Modern-Ice"
+    xcursor-size 24
+}
+
+// Скрытый рабочий стол для свёрнутых окон (niri сам сворачивать не умеет).
+// Имя должно совпадать с hiddenName в shell/Niri.qml.
+workspace "min"
+
+// оболочка: панель задач, "Пуск", уведомления, блокировка, обои
+spawn-at-startup "win11-shell-run"
+spawn-at-startup "win11-session-check"
+// значок сети в трее: выбор Wi-Fi, пароли, VPN
+spawn-at-startup "nm-applet" "--indicator"
+// автоблокировка через 10 минут простоя и перед сном
+spawn-at-startup "swayidle" "-w" "timeout" "600" "qs -p /etc/win11-shell ipc call shell idleLock" "before-sleep" "qs -p /etc/win11-shell ipc call shell lock"
+
+hotkey-overlay {
+    skip-at-startup
+}
+
+// Не открывать обзор при наведении на угол экрана.
+gestures {
+    hot-corners { off; }
+}
+
+overview {
+    zoom 0.45
+    backdrop-color "#0b2a4a"
+}
+
+layout {
+    // цвет экрана, пока оболочка ещё не нарисовала обои: тёмно-синий, как заставка входа (а не серый)
+    background-color "#0a1c3a"
+    gaps 0
+    default-column-width { proportion 1.0; }
+    focus-ring { off; }
+    border { off; }
+    shadow {
+        on
+        softness 30
+        spread 4
+        offset x=0 y=6
+        color "#00000060"
+    }
+}
+
+// окна как в Windows: плавающие, со скруглёнными углами.
+// Размер меняется мышью за край окна или Win + правая кнопка мыши,
+// перемещение - за заголовок или Win + левая кнопка.
+window-rule {
+    open-floating true
+    geometry-corner-radius 8
+    clip-to-geometry true
+}
+
+animations {
+    // Открытие: окно "проявляется" кругом из центра, слегка увеличиваясь,
+    // по краю круга бежит светлая кайма.
+    window-open {
+        duration-ms 420
+        curve "ease-out-cubic"
+        custom-shader r"
+            vec4 open_color(vec3 coords_geo, vec3 size_geo) {
+                float p = niri_clamped_progress;
+                float scale = 0.92 + 0.08 * p;
+                vec2 uv = (coords_geo.xy - vec2(0.5)) / scale + vec2(0.5);
+                vec3 coords_tex = niri_geo_to_tex * vec3(uv, 1.0);
+                vec4 color = texture2D(niri_tex, coords_tex.st);
+
+                vec2 d = (uv - vec2(0.5)) * size_geo.xy;
+                float reach = length(size_geo.xy) * 0.5 + 60.0;
+                float radius = p * reach;
+                float dist = length(d);
+                float mask = 1.0 - smoothstep(radius - 60.0, radius, dist);
+                float rim = smoothstep(radius - 60.0, radius - 20.0, dist) * mask * (1.0 - p);
+
+                color *= mask * min(1.0, p * 2.5);
+                color.rgb += vec3(0.35, 0.65, 1.0) * rim * 0.5 * color.a;
+                return color;
+            }
+        "
+    }
+
+    // Закрытие: как в Windows - окно быстро гаснет и чуть уменьшается (штатная анимация niri, без шейдера).
+    window-close {
+        duration-ms 160
+        curve "ease-out-quad"
+    }
+
+    // пружинящие перемещения и переключение рабочих столов
+    window-movement {
+        spring damping-ratio=0.75 stiffness=600 epsilon=0.0001
+    }
+    window-resize {
+        spring damping-ratio=0.85 stiffness=700 epsilon=0.0001
+    }
+    workspace-switch {
+        spring damping-ratio=0.8 stiffness=700 epsilon=0.0001
+    }
+    overview-open-close {
+        spring damping-ratio=0.8 stiffness=600 epsilon=0.0001
+    }
+}
+
+binds {
+    // Одиночное нажатие Win: служба keyd превращает его в Win+F10 (см. win11-shell.nix)
+    Mod+F10 repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "start"; }
+    Mod+S repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "search"; }
+    Mod+R repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "run"; }
+    Mod+H repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "hub"; }
+    Mod+A repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "quick"; }
+    Mod+I repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "settings"; }
+    Mod+N repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "calendar"; }
+    Mod+L repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "lock"; }
+
+    // программы
+    Mod+E { spawn "nautilus"; }
+    Mod+T { spawn "kitty"; }
+
+    // окна
+    Alt+F4 { close-window; }
+    Ctrl+Shift+Escape repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "taskmgr"; }
+    Mod+Up { toggle-window-floating; }      // развернуть на весь экран / вернуть в окно
+    Mod+Down repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "minimize"; }
+    Mod+M repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "minimize"; }
+    Mod+Shift+M repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "restoreAll"; }
+    Mod+D repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "showDesktop"; }
+    Mod+F { fullscreen-window; }
+    Mod+Left { focus-column-left; }
+    Mod+Right { focus-column-right; }
+
+    // представление задач и рабочие столы
+    Mod+Tab repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "overview"; }
+    Mod+Ctrl+Left { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "desktopPrev"; }
+    Mod+Ctrl+Right { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "desktopNext"; }
+    Mod+Ctrl+D repeat=false { spawn "qs" "-p" "/etc/win11-shell" "ipc" "call" "shell" "desktopNew"; }
+    Mod+Shift+Left { move-window-to-workspace-up; }      // окно - на предыдущий стол
+    Mod+Shift+Right { move-window-to-workspace-down; }   // окно - на следующий стол
+
+    // снимки экрана
+    Mod+Shift+S { screenshot; }
+    Print { screenshot-screen; }
+
+    // звук
+    XF86AudioRaiseVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.05+"; }
+    XF86AudioLowerVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.05-"; }
+    XF86AudioMute allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
+
+    // яркость
+    XF86MonBrightnessUp allow-when-locked=true { spawn "brightnessctl" "-q" "set" "5%+"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "-q" "set" "5%-"; }
+
+    // аварийный выход из сеанса
+    Mod+Shift+E { quit; }
+}
+
+// Параметры из окна "Параметры". Должно оставаться последней строкой: эти значения главнее.
+include "win11-settings.kdl"

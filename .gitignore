@@ -1,0 +1,16 @@
+*.local
+*.local.*
+*.bak-*
+*.log
+*.tmp
+.cache
+.state
+result
+win11-shell-install.sh
+win11-shell.zip
+/sound-*
+/printer-*.nix
+/setup-*.sh
+/scripts/m[0-9]*.sh
+__pycache__/
+*.pyc

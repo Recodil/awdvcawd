@@ -1,0 +1,12 @@
+[SddmGreeterTheme]
+Name=Win11
+Description=Экран входа в стиле Windows 11
+Author=win11-shell
+License=MIT
+Type=sddm-theme
+Version=1.0
+MainScript=Main.qml
+ConfigFile=theme.conf
+Theme-Id=win11
+Theme-API=2.0
+QtVersion=6
